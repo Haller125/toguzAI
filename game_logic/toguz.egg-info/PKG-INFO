@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: toguz
+Version: 0.5.6
+Summary: Toguzkumalak cpp logic wrapped with pybind11
+Author: CockSucker
+Author-email: cocksucker@example.com
