@@ -97,7 +97,7 @@ def create_dataset_v2():
         print(f"Game {i} finished")
         i += 1
         j = 0
-        df.to_csv("2.csv")
+        df.to_csv("4.csv")
 
 def main():
     # board = Board()
