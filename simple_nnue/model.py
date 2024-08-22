@@ -1,6 +1,7 @@
 import numpy as np
 from torch import nn
 import torch
+import torch.optim as optim
 
 import torch.ao.quantization as quantization
 # Scaling factors (будут меняться)
@@ -52,6 +53,31 @@ class NNUE(nn.Module):
         return final_output
 
 
+def train_nnue(nnmodel, train_loader, val_loader, num_epochs, learning_rate):
+    criterion = nn.MSELoss()  # or whatever loss function is appropriate
+    optimizer = optim.Adam(nnmodel.parameters(), lr=learning_rate)
+
+    for epoch in range(num_epochs):
+        nnmodel.train()
+        for white_features, black_features, stm, targets in train_loader:
+            optimizer.zero_grad()
+            outputs = nnmodel(white_features, black_features, stm)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+
+        # Validation
+        nnmodel.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for white_features, black_features, stm, targets in val_loader:
+                outputs = nnmodel(white_features, black_features, stm)
+                val_loss += criterion(outputs, targets).item()
+
+        val_loss /= len(val_loader)
+        print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss:.4f}")
+
+
 def compute_loss(wdl_eval_target, wdl_eval_model, game_result, lambda_=0.5, epsilon=1e-8):
     loss_eval = (wdl_eval_target * np.log(wdl_eval_target + epsilon) + (1 - wdl_eval_target) * np.log(
         1 - wdl_eval_target + epsilon))
@@ -66,6 +92,8 @@ def compute_loss(wdl_eval_target, wdl_eval_model, game_result, lambda_=0.5, epsi
     loss = lambda_ * loss_eval + (1 - lambda_) * loss_result
 
     return loss.mean()
+
+
 
 if __name__ == "__main__":
     model = NNUE()

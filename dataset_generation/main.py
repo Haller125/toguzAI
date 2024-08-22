@@ -100,11 +100,11 @@ def create_dataset_v2():
         df.to_csv("4.csv")
 
 def main():
-    # board = Board()
-    # create_dataset_v1(board, DFS_DEPTH)
-    # dataset.to_csv("datasetDFS.csv")
-
-    create_dataset_v2()
+    board = Board()
+    create_dataset_v1(board, DFS_DEPTH)
+    dataset.to_csv("datasetDFS.csv")
+    #
+    # create_dataset_v2()
 
 if __name__ == '__main__':
     main()
