@@ -13,6 +13,7 @@ class CSVDataset(Dataset):
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
         # Assuming the last column is the target and the rest are features
+        # TODO: fix it
         features = torch.tensor(row[:-1].values, dtype=torch.float32)
         target = torch.tensor(row[-1], dtype=torch.long)
         return features, target

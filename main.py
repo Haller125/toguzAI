@@ -3,12 +3,11 @@ from dataset_generation import CONSTANTS
 
 
 def main():
-    board = toguz.Board()
+    board = toguz.Board([1, 2, 3, 4, 5, 6, 7,8,9,10,11,12,13,14,15,16,17,18], [-1,-1], [0,0])
     mmx = toguz.MinimaxH(CONSTANTS.heuristic_weights)
-    lb = toguz.Board(board.sockets, board.tuzdeks, board.kaznas)
-    lb.makeMove(1, False)
+
+    print(board.rotate().toString())
     print(board.toString())
-    print(lb.toString())
 
     
 
