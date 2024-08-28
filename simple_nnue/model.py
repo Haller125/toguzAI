@@ -12,7 +12,7 @@ s_B = s_W * s_O  # bias scaling factor
 s_WA = (s_W * s_O) / s_A  # weight scaling factor for the input weights
 
 # The number of features in the input layer
-NUM_FEATURES = 2000
+NUM_FEATURES = 27
 M = 4 # Будут меняться
 N = 8 # Будут меняться
 K = 1
@@ -45,8 +45,8 @@ class NNUE(nn.Module):
         accumulator = (stm * torch.cat([w, b], dim=1)) + ((1 - stm) * torch.cat([b, w], dim=1))
 
         # Apply ClippedReLU (clamp_) and proceed through layers
-        l1_x = torch.clamp(accumulator, 0, 1)
-        l2_x = torch.clamp(self.l1(l1_x), 0, 1)
+        l1_x = torch.clamp(accumulator, 0, 127)
+        l2_x = torch.clamp(self.l1(l1_x), 0, 127)
 
         final_output = self.l2(l2_x)
 
@@ -92,7 +92,6 @@ def compute_loss(wdl_eval_target, wdl_eval_model, game_result, lambda_=0.5, epsi
     loss = lambda_ * loss_eval + (1 - lambda_) * loss_result
 
     return loss.mean()
-
 
 
 if __name__ == "__main__":

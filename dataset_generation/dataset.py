@@ -1,37 +1,33 @@
-import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
+import pyarrow.parquet as pq
+import pandas as pd
+import numpy as np
 
 
-class CSVDataset(Dataset):
-    def __init__(self, csv_file):
-        self.data = pd.read_csv(csv_file)
+class ChunkedNNUEDataset(Dataset):
+    def __init__(self, file_path, chunk_size=1000000):
+        self.file_path = file_path
+        self.chunk_size = chunk_size
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        row = self.data.iloc[idx]
-        # Assuming the last column is the target and the rest are features
-        # TODO: fix it
-        features = torch.tensor(row[:-1].values, dtype=torch.float32)
-        target = torch.tensor(row[-1], dtype=torch.long)
-        return features, target
-
-
-class DSLoader:
-    def __init__(self, csv_file, batch_size=32):
-        self.dataset = CSVDataset(csv_file)
-        self.loader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
-
-    def __iter__(self):
-        return iter(self.loader)
+        # Read the entire Parquet file
+        self.data = pq.read_table(file_path)
+        self.total_rows = len(self.data)
 
     def __len__(self):
-        return len(self.loader)
+        return self.total_rows
 
     def __getitem__(self, idx):
-        return self.loader.dataset[idx]
+        # Convert PyArrow record to pandas Series
+        row = self.data[idx].to_pandas().iloc[0]
 
-    def __repr__(self):
-        return f"DSLoader with {len(self.loader)} batches"
+        white_features = torch.tensor(row['white_features'], dtype=torch.int8)
+        black_features = torch.tensor(row['black_features'], dtype=torch.int8)
+        stm = torch.tensor(row['stm'], dtype=torch.int8)
+        eval = torch.tensor(row['eval'], dtype=torch.float32)
+
+        return white_features, black_features, stm, eval
+
+def create_dataloader(file_path, batch_size=512, shuffle=True, num_workers=4, chunk_size=100000):
+    dataset = ChunkedNNUEDataset(file_path, chunk_size)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
