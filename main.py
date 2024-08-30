@@ -1,6 +1,7 @@
 from game_logic import toguz
 from dataset_generation import CONSTANTS
 from dataset_generation.dataset import create_dataloader
+from simple_nnue.model import NNUE, train_nnue
 
 import pandas as pd
 import ast
@@ -16,21 +17,23 @@ def main():
     return 0
 
 def check_dataset():
-    file_path = "dataset_generation/porn.parquet"
-    dataloader = create_dataloader(file_path)
+    file_path = "dataset_generation/flat_porn.parquet"
 
-    for i, (white_features, black_features, stm, targets) in enumerate(dataloader):
-        print(f"Batch {i}:")
-        print("White features:", white_features.shape)
-        print("Black features:", black_features.shape)
-        print("STM:", stm.shape)
-        print("Targets:", targets.shape)
-        print("\n")
+    df = pd.read_parquet(file_path)
 
-        if i == 9:  # Print first 10 batches
-            break
+    print("DF loaded")
+    print(df.head())
 
-# Press the green button in the gutter to run the script.
+    meta_epoch = 10
+
+    nnue = NNUE()
+
+    for i in range(meta_epoch):
+        train_loader = create_dataloader(df.sample(frac=0.05).reset_index())
+        val_loader = create_dataloader(df.sample(frac=0.01).reset_index())
+
+        train_nnue(nnue, train_loader, val_loader)
+
 if __name__ == '__main__':
     check_dataset()
 

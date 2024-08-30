@@ -7,11 +7,13 @@ import pandas as pd
 
 dataset = pd.DataFrame(columns=["sockets", "kaznas", "tuzdeks", "eval"])
 
+
 def eval_play(board: Board, current_player: bool = False):
     lb = Board(board.sockets, board.tuzdeks, board.kaznas)
     game_finished = False
     current_player = current_player
-    evaluation, _ = MinimaxH(heuristic_weights).minimaxWithABWithHeuristics(lb, EVAL_DEPTH, -1000000, 1000000, current_player, -1)
+    evaluation, _ = MinimaxH(heuristic_weights).minimaxWithABWithHeuristics(lb, EVAL_DEPTH, -1000000, 1000000,
+                                                                            current_player, -1)
 
     mmh = MinimaxH(heuristic_weights)
     while True:
@@ -26,6 +28,7 @@ def eval_play(board: Board, current_player: bool = False):
         if lb.kaznas[0] >= 81 or lb.kaznas[1] >= 81:
             game_finished = True
         current_player = not current_player
+
 
 def create_dataset_v1(board: Board, depth: int):
     """ Create dataset by playing games by DFS """
@@ -47,6 +50,7 @@ def create_dataset_v1(board: Board, depth: int):
         lb.makeMove(i, False)
         create_dataset_v1(lb.rotate(), depth - 1)
 
+
 def random_move(board: Board, current_player: bool):
     cp = 1 if current_player else 0
     """ Make random move """
@@ -55,12 +59,13 @@ def random_move(board: Board, current_player: bool):
         move = random.randint(cp * 9, (cp * 9) + 8)
     return move
 
+
 def create_dataset_v2():
     """ Create dataset by playing eventual random moves """
     mmh = MinimaxH(heuristic_weights)
     df = pd.DataFrame(columns=["sockets", "kaznas", "tuzdeks", "eval", "player"])
     i = 0
-    j = 0   # first moves to ignore counter
+    j = 0  # first moves to ignore counter
     while True:
         lb = Board()
         game_finished = False
@@ -99,12 +104,26 @@ def create_dataset_v2():
         j = 0
         df.to_csv("4.csv")
 
+
 def main():
-    board = Board()
-    create_dataset_v1(board, DFS_DEPTH)
-    dataset.to_csv("datasetDFS.csv")
-    #
-    # create_dataset_v2()
+    # board = Board()
+    # create_dataset_v1(board, DFS_DEPTH)
+    # dataset.to_csv("datasetDFS.csv")
+    # #
+    # # create_dataset_v2()
+
+    import numpy as np
+    import torch
+
+    def convert_feature_column(feature_column):
+        converted = [np.array([np.array(x, dtype=np.int8) for x in i]).flatten() for i in feature_column]
+        return converted
+
+    df1 = pd.read_parquet("porn.parquet")
+    df1['white_features'] = convert_feature_column(df1['white_features'])
+    df1['black_features'] = convert_feature_column(df1['black_features'])
+
+    df1.to_parquet("flat_porn.parquet")
 
 if __name__ == '__main__':
     main()

@@ -53,7 +53,7 @@ class NNUE(nn.Module):
         return final_output
 
 
-def train_nnue(nnmodel, train_loader, val_loader, num_epochs, learning_rate):
+def train_nnue(nnmodel, train_loader, val_loader, num_epochs=10, learning_rate=0.01):
     criterion = nn.MSELoss()  # or whatever loss function is appropriate
     optimizer = optim.Adam(nnmodel.parameters(), lr=learning_rate)
 
