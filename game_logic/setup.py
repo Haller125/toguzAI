@@ -1,10 +1,12 @@
 from setuptools import setup, Extension
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+import platform
 
 ext_modules = [
     Pybind11Extension(
         "toguz",
         ["toguz_board_wrapper.cpp"],
+        extra_compile_args=['-O3'],
     ),
 ]
 

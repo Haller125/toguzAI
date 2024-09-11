@@ -4,6 +4,8 @@ import torch
 import torch.optim as optim
 
 import torch.ao.quantization as quantization
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
 # Scaling factors (будут меняться)
 s_W = 127  # weight scaling factor
 s_A = 127  # input scaling factor
@@ -42,7 +44,7 @@ class NNUE(nn.Module):
 
         # Remember that we order the accumulators for 2 perspectives based on who is to move.
         # So we blend two possible orderings by interpolating between `stm` and `1-stm` tensors.
-        accumulator = (stm * torch.cat([w, b], dim=1)) + ((1 - stm) * torch.cat([b, w], dim=1))
+        accumulator = (stm[:, None] * torch.cat([w, b], dim=1)) + ((1 - stm[:, None]) * torch.cat([b, w], dim=1))
 
         # Apply ClippedReLU (clamp_) and proceed through layers
         l1_x = torch.clamp(accumulator, 0, 127)
@@ -52,46 +54,79 @@ class NNUE(nn.Module):
 
         return final_output
 
-
-def train_nnue(nnmodel, train_loader, val_loader, num_epochs=10, learning_rate=0.01):
-    criterion = nn.MSELoss()  # or whatever loss function is appropriate
+# TODO debug this (console errors)
+def train_nnue(nnmodel, train_loader, val_loader, num_epochs=10, learning_rate=0.001):
     optimizer = optim.Adam(nnmodel.parameters(), lr=learning_rate)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+    mse_loss = nn.MSELoss()
 
     for epoch in range(num_epochs):
         nnmodel.train()
-        for white_features, black_features, stm, targets in train_loader:
+        train_loss = 0
+        for white_features, black_features, stm, eval in train_loader:
             optimizer.zero_grad()
             outputs = nnmodel(white_features, black_features, stm)
-            loss = criterion(outputs, targets)
+            outputs = outputs.squeeze(-1)
+
+            if outputs.shape != eval.shape:
+                raise ValueError(f"Shape mismatch: outputs {outputs.shape}, eval {eval.shape}")
+
+            loss = mse_loss(outputs, eval)
             loss.backward()
+
+            # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(nnmodel.parameters(), max_norm=1.0)
+
             optimizer.step()
+            train_loss += loss.item()
+
+        train_loss /= len(train_loader)
 
         # Validation
         nnmodel.eval()
         val_loss = 0
         with torch.no_grad():
-            for white_features, black_features, stm, targets in val_loader:
+            for white_features, black_features, stm, eval in val_loader:
                 outputs = nnmodel(white_features, black_features, stm)
-                val_loss += criterion(outputs, targets).item()
+                outputs = outputs.squeeze(-1)
+
+                if outputs.shape != eval.shape:
+                    raise ValueError(f"Shape mismatch: outputs {outputs.shape}, eval {eval.shape}")
+
+                val_loss += mse_loss(outputs, eval).item()
 
         val_loss /= len(val_loader)
-        print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss:.4f}")
+
+        current_lr = optimizer.param_groups[0]['lr']
+        print(
+            f"Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}, LR: {current_lr:.6f}")
+
+        scheduler.step(val_loss)
+
+    return nnmodel
+
+def compute_loss(outputs, targets, epsilon=1e-8):
+    loss_eval = (targets * torch.log(targets + epsilon) + (1 - targets) * torch.log(1 - targets + epsilon))
+    loss_eval -= (targets * torch.log(outputs + epsilon) + (1 - targets) * torch.log(1 - outputs + epsilon))
+    return loss_eval.mean()
 
 
-def compute_loss(wdl_eval_target, wdl_eval_model, game_result, lambda_=0.5, epsilon=1e-8):
-    loss_eval = (wdl_eval_target * np.log(wdl_eval_target + epsilon) + (1 - wdl_eval_target) * np.log(
-        1 - wdl_eval_target + epsilon))
-    loss_eval -= (wdl_eval_target * np.log(wdl_eval_model + epsilon) + (1 - wdl_eval_target) * np.log(
-        1 - wdl_eval_model + epsilon))
+def chess_eval_loss(outputs, targets, delta=10.0):
+    """
+    Custom loss function for chess evaluation:
+    - Uses Huber Loss for robustness against outliers
+    - Adds a scaling factor to give more weight to small differences around 0
+    """
+    diff = outputs - targets
+    abs_diff = torch.abs(diff)
+    quadratic = torch.min(abs_diff, torch.tensor(delta))
+    linear = abs_diff - quadratic
+    base_loss = 0.5 * quadratic ** 2 + delta * linear
 
-    loss_result = (game_result * np.log(wdl_eval_target + epsilon) + (1 - game_result) * np.log(
-        1 - wdl_eval_target + epsilon))
-    loss_result -= (game_result * np.log(wdl_eval_model + epsilon) + (1 - game_result) * np.log(
-        1 - wdl_eval_model + epsilon))
+    # Add scaling factor to emphasize small differences around 0
+    scale = 1.0 / (1.0 + torch.abs(targets))
 
-    loss = lambda_ * loss_eval + (1 - lambda_) * loss_result
-
-    return loss.mean()
+    return (base_loss * scale).mean()
 
 
 if __name__ == "__main__":
